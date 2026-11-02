@@ -1,0 +1,51 @@
+name: Deploy releases to GitHub Pages
+
+# Publishes the releases/ folder of mbientlab/mbientlab.com at the root of
+# https://releases.mbientlab.com, so legacy SDKs that fetch
+# https://releases.mbientlab.com/metawear/info1.json keep working.
+# Run manually after firmware changes land in mbientlab/mbientlab.com.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: mbientlab/mbientlab.com
+          sparse-checkout: |
+            releases
+            .github/scripts
+      - name: Check firmware catalog files
+        run: python3 .github/scripts/check-releases.py .
+      - name: Assemble site
+        run: |
+          mkdir _site
+          cp -R releases/. _site/
+          echo releases.mbientlab.com > _site/CNAME
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
